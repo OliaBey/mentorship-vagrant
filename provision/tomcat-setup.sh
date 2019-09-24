@@ -2,7 +2,8 @@ set -x
 
 # Installing Oracle Java JDK 8
 sudo yum update -y || exit 1
-sudo yum install -y java-1.8.0-openjdk ||exit 2
+sudo yum install -y $1 ||exit 2
+mv /usr/lib/jvm/$1* /usr/lib/jvm/java-8-openjdk
 java -version
 # Add Tomcat user
 sudo groupadd tomcat || exit 3
@@ -10,10 +11,10 @@ sudo useradd -s /bin/false -g tomcat -d /opt/tomcat tomcat || exit 4
 # Download Tomcat
 cd /home/vagrant
 sudo yum -y install curl || exit 5
-curl -O --progress-bar http://archive.apache.org/dist/tomcat/tomcat-9/v9.0.0.M22/bin/apache-tomcat-9.0.0.M22.tar.gz || exit 6
+curl -O --progress-bar http://archive.apache.org/dist/tomcat/$2 || exit 6
 # Extract into target directory 
 sudo mkdir /opt/tomcat 
-sudo tar xzvf apache-tomcat-9*tar.gz -C /opt/tomcat --strip-components=1
+sudo tar xzvf $3 -C /opt/tomcat --strip-components=1
 # Assign ownership over target directory
 sudo chgrp -R tomcat /opt/tomcat
 sudo chmod -R g+r /opt/tomcat/conf

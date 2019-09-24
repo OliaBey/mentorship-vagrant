@@ -19,4 +19,5 @@
               version="1.0">
               <role rolename="manager-gui"/>
               <user username="admin" password="admin" roles="manager-gui,admin-gui"/>
+              <user username="deployer" password="deployer" roles="manager-script"/>
 </tomcat-users>
