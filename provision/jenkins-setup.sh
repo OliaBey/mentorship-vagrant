@@ -2,7 +2,7 @@
 set +x
 
 echo "Install Java"
-sudo yum -y install java-1.8.0-openjdk-devel || exit 1
+sudo yum -y install $1 || exit 1
 echo "enable the Jenkins repository"
 curl --silent --location http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo | sudo tee /etc/yum.repos.d/jenkins.repo || exit 2
 echo "add the repository to your system"
