@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -x
 
 # Installing Oracle Java JDK 8
