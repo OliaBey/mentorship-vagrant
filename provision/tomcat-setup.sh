@@ -21,18 +21,16 @@ sudo chmod -R g+r /opt/tomcat/conf
 sudo chmod g+x /opt/tomcat/conf
 sudo chown -R tomcat /opt/tomcat/webapps/ /opt/tomcat/work/ /opt/tomcat/temp/ /opt/tomcat/logs/
 # Copy basic Tomcat configuration files
-cd /home/vagrant
-sudo cp webapps/config/context.xml /opt/tomcat/webapps/manager/META-INF/context.xml || exit 7
-sudo cp webapps/config/context.xml /opt/tomcat/webapps/host-manager/META-INF/context.xml || exit 8
-sudo cp webapps/config/tomcat-users.xml /opt/tomcat/conf/tomcat-users.xml || exit 9
+sudo cp /home/vagrant/config/context.xml /opt/tomcat/webapps/manager/META-INF/context.xml || exit 7
+sudo cp /home/vagrant/config/context.xml /opt/tomcat/webapps/host-manager/META-INF/context.xml || exit 8
+sudo cp /home/vagrant/config/tomcat-users.xml /opt/tomcat/conf/tomcat-users.xml || exit 9
 # Copy any webapps in the source folder
-sudo cp webapps/*.war /opt/tomcat/webapps || exit 10
+#sudo cp webapps/*.war /opt/tomcat/webapps || exit 10
 
 # Copy service file and reload daemon
-sudo cp webapps/config/tomcat.service /etc/systemd/system/ || exit 11
+sudo cp /home/vagrant/config/tomcat.service /etc/systemd/system/ || exit 11
 sudo systemctl daemon-reload || exit 12
 sudo systemctl start tomcat || exit 13
-sudo ufw allow 8080 || exit 14
 sudo systemctl enable tomcat || exit 15
 
 # sudo systemctl status tomcat
@@ -41,3 +39,9 @@ sudo systemctl enable tomcat || exit 15
 # sudo sed -i -e 's=<Valve=<!--<Valve=g' /opt/tomcat/webapps/host-manager/META-INF/context.xml
 # sudo sed -i -e 's=</Context>=--></Context>=g' /opt/tomcat/webapps/host-manager/META-INF/context.xml
 # sudo update-java-alternatives -l
+
+yum update -y httpd
+sudo yum install -y httpd
+sudo cp /home/vagrant/000-default.conf /etc/httpd/conf.d/default-site.conf
+sudo systemctl start httpd
+sudo systemctl status httpd

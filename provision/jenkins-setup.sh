@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-set +x
+set -x
 
-echo "Install Java"
-sudo yum -y install $1 || exit 1
+sudo yum update -y
+echo "Install Java, nginx"
+sudo yum install -y $1 epel-release 
+sudo yum install -y nginx || exit 1
+nginx -v
 echo "enable the Jenkins repository"
 curl --silent --location http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo | sudo tee /etc/yum.repos.d/jenkins.repo || exit 2
 echo "add the repository to your system"
@@ -12,12 +15,15 @@ sudo yum -y install jenkins || exit 4
 echo "start the Jenkins service"
 sudo systemctl start jenkins || exit 5
 sudo systemctl status jenkins
-echo "enable the Jenkins service to start on system boot"
+sudo cp /home/vagrant/nginx.conf /etc/nginx/nginx.conf
+sudo systemctl restart nginx
+sudo systemctl enable nginx 
 sudo systemctl enable jenkins || exit 6
 sudo systemctl enable firewalld
 sudo systemctl start firewalld
 sudo systemctl status firewalld
 sudo firewall-cmd --permanent --zone=public --add-port=8080/tcp
+sudo firewall-cmd --permanent --zone=public --add-port=80/tcp
 sudo firewall-cmd --reload
 exit 0
 
