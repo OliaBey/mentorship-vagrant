@@ -25,5 +25,16 @@ sudo systemctl status firewalld
 sudo firewall-cmd --permanent --zone=public --add-port=8080/tcp
 sudo firewall-cmd --permanent --zone=public --add-port=80/tcp
 sudo firewall-cmd --reload
+
+sudo yum install -y git wget
+git --version
+
+cd /usr/local/src
+sudo wget http://apache.ip-connect.vn.ua/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz
+sudo tar -xf apache-maven-3.6.1-bin.tar.gz
+sudo mv apache-maven-3.6.1/ apache-maven/
+sudo cp /home/vagrant/maven.sh /etc/profile.d/maven.sh
+source /etc/profile.d/maven.sh
+mvn -version
 exit 0
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -x
 
+#https://github.com/kploesser/vagrant-for-tomcat
 # Installing Oracle Java JDK 8
 sudo yum update -y || exit 1
 sudo yum install -y $1 ||exit 2
@@ -32,7 +33,8 @@ sudo cp /home/vagrant/config/tomcat-users.xml /opt/tomcat/conf/tomcat-users.xml 
 sudo cp /home/vagrant/config/tomcat.service /etc/systemd/system/ || exit 11
 sudo systemctl daemon-reload || exit 12
 sudo systemctl start tomcat || exit 13
-sudo systemctl enable tomcat || exit 15
+sudo systemctl enable tomcat
+sudo systemctl status tomcat || exit 15
 
 # sudo systemctl status tomcat
 # sudo sed -i -e 's=<Valve=<!--<Valve=g' /opt/tomcat/webapps/manager/META-INF/context.xml
@@ -43,6 +45,6 @@ sudo systemctl enable tomcat || exit 15
 
 yum update -y httpd
 sudo yum install -y httpd
-sudo cp /home/vagrant/000-default.conf /etc/httpd/conf.d/default-site.conf
+#sudo cp /home/vagrant/000-default.conf /etc/httpd/conf.d/default-site.conf
 sudo systemctl start httpd
 sudo systemctl status httpd

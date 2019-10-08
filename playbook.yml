@@ -1,0 +1,83 @@
+---
+- hosts: mytomcat
+  become: yes
+  remote_user: root
+# tasks file for tomcat
+  tasks:
+  - name: Install Java 1.8
+    yum: name=java-1.8.0-openjdk-devel state=present
+
+  - name: Install wget
+    yum: name=wget state=present
+
+  - name: Install epel
+    yum: name=epel-release state=present
+
+  - name: Check if Tomcat installed
+    stat:
+      path: /opt/tomcat/
+    register: tomcat_path
+
+  - name: Install Tomcat
+    block:
+
+    - name: add group "tomcat"
+      group: name=tomcat
+
+    - name: add user "tomcat"
+      user: name=tomcat group=tomcat home=/usr/share/tomcat createhome=no
+      become: yes
+      become_user: root
+
+    - name: Unarchive a tomcat file
+      unarchive:
+        src: http://archive.apache.org/dist/tomcat/tomcat-9/v9.0.0.M22/bin/apache-tomcat-9.0.0.M22.tar.gz
+          #http://apache.cp.if.ua/tomcat/tomcat-7/v7.0.93/bin/apache-tomcat-7.0.93.tar.gz
+        dest: /opt/
+        remote_src: yes
+
+    - name: Rename Tomcat directory
+      shell: mv /opt/apache-tomcat-9.0.0.M22/ /opt/tomcat/
+
+    - name: Change ownership of Tomcat installation directory
+      file: path=/opt/tomcat/ owner=tomcat group=tomcat state=directory recurse=yes mode=0755
+
+    - name: Change ownership of webapps/ directory
+      file: path=/opt/tomcat/webapps owner=tomcat group=tomcat state=directory recurse=yes mode=0757
+
+    - name: Install Systemd Unit File
+      copy: src=/home/vagrant/config/tomcat.service dest=/etc/systemd/system/
+
+    - name: Systemctl daemon-reload
+      shell: systemctl daemon-reload
+      become: yes
+      become_user: root
+
+    - name: Systemctl enable tomcat
+      shell: systemctl enable tomcat
+      become: yes
+      become_user: root
+
+    - name: Configure Tomcat users
+      template: src=/home/vagrant/config/tomcat-users.xml dest=/opt/tomcat/conf/
+      #notify: restart tomcat
+
+    - name: Allow acces to manager app from all hosts
+      template: src=/home/vagrant/config/context.xml dest=/opt/tomcat/webapps/manager/META-INF/
+      #notify: restart tomcat
+
+    when: tomcat_path.stat.exists == false
+
+  - name: Start Tomcat
+    command: nohup /opt/tomcat/bin/startup.sh
+    become: yes
+    become_user: root
+
+  - name: Install nginx
+    yum: name=nginx state=present
+
+  - name: Install httpd site file
+    copy: src=/home/vagrant/000-default.conf dest=/etc/httpd/conf.d/default-site.conf
+
+  - name: start nginx
+    service: name=nginx state=started

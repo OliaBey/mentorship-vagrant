@@ -1,33 +1,39 @@
 #!/usr/bin/env bash
-set +x
+set -x
+sudo cp /home/vagrant/selinux /etc/sysconfig/selinux
+#sudo reboot
+sudo yum -y install httpd
+systemctl status httpd.service
+sudo systemctl start httpd.service
+sudo systemctl enable httpd
+systemctl status httpd.service
+sudo yum -y install epel-release
+sudo yum -y install http://rpms.remirepo.net/enterprise/remi-release-7.rpm
+yum repolist --disableincludes remi-php54
+yum repolist --enablerepo remi-php72
+sudo yum install -y php php-pear php-cgi php-common php-mbstring php-snmp php-gd php-pecl-mysql php-xml php-mysql php-gettext php-bcmath
+cat /etc/php.ini | sed 's/;date.timezone =/date.timezone = "Europe\/Kiev"/g'
+sudo yum --enablerepo=remi -y install mariadb-server
+sudo systemctl start mariadb.service
+sudo systemctl enable mariadb
+#mysql_secure_installation
+mysql -u root -p
+Create database fosslinuxzabbix;
+create user 'zabbixuser'@'localhost' identified BY '@dfEr234KliT90';
+grant all privileges on fosslinuxzabbix.* to zabbixuser@localhost ;
+flush privileges;
+#sudo rpm -ivh https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-agent-4.0.0-2.el7.x86_64.rpm
+#sudo yum -y install zabbix-server-mysql  zabbix-web-mysql zabbix-agent zabbix-get
+#yum makecache
+# https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-release-4.0-1.el7.noarch
 
-echo "add the repository to your system"
-sudo rpm -ivh https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-release-4.0-1.el7.noarch.rpm || exit 1
-echo "enable optional-rpms"
-sudo yum-config-manager --enable rhel-7-server-optional-rpms || exit 2
-echo "Install zabbix"
-sudo yum install -y zabbix-server-mysql zabbix-web-mysql || exit 3
-# yum install zabbix-proxy-mysql
-sudo yum install zabbix-web-mysql
+#sudo wget http://repo.zabbix.com/zabbix/2.2/rhel/6/x86_64/zabbix-release-2.2-1.el6.noarch.rpm
+#sudo rpm -ihv http://repo.zabbix.com/zabbix/2.2/rhel/6/x86_64/zabbix-release-2.2-1.el6.noarch.rpm
 
-
-
-
-sudo yum install -y wget
-wget http://dev.mysql.com/get/mysql57-community-release-el7-9.noarch.rpm
-sudo rpm -Uvh mysql57-community-release-el7-9.noarch.rpm
-sudo yum install -y mysql-server
-sudo systemctl start mysqld
-sudo systemctl status mysqld
-
-sudo cat /var/log/mysqld.log
-mysql -uroot -p:I8NqRr?cfa?
-SET PASSWORD FOR 'root'@'localhost' = PASSWORD('qaz123WSX!');
-create database zabbix character set utf8 collate utf8_bin;
-grant all privileges on zabbix.* to zabbix@localhost identified by 'qaz123WSX!';
-quit;
-
-
+sudo rpm -ihv https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-get-4.0.1-1.el7.x86_64.rpm
+sudo rpm -ihv https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-agent-4.0.1-1.el7.x86_64.rpm
+sudo rpm -ihv https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-web-mysql-4.0.1-1.el7.noarch.rpm
+sudo rpm -ihv https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-server-mysql-4.0.1-1.el7.x86_64.rpm
 
 
 exit 0
