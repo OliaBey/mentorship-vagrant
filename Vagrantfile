@@ -3,16 +3,15 @@
 
 Vagrant.configure("2") do |config|
   config.vm.define "myjenkins" do |cen|
-     #cen.vm.box = "centos/7"
      cen.vm.box = "geerlingguy/centos7"
      cen.vm.box_version = "1.2.16"
-     cen.vm.network "public_network"
+     cen.vm.network "private_network", ip: "192.168.50.4"
      cen.vm.network "forwarded_port", guest: 8080, host: 8080, auto_correct: true
      cen.vm.network "forwarded_port", guest: 80, host: 80, auto_correct: true  
      cen.vm.synced_folder "file/jenkins/", "/home/vagrant/"
      cen.vm.provision "shell" do |s| 
        s.path = "./provision/jenkins-setup.sh"
-       s.args = ["java-1.8.0-openjdk"]
+       s.args = ["java-1.8.0-openjdk-devel"]
      end
      cen.vm.provider "virtualbox" do |vb|
        vb.name = "jenkins"
@@ -21,11 +20,9 @@ Vagrant.configure("2") do |config|
    end
 
   config.vm.define "mytomcat" do |tom|
-     #tom.vm.box = "centos/7"
      tom.vm.box = "geerlingguy/centos7"
      tom.vm.box_version = "1.2.16"
-     #tom.vm.box_check_update = false
-     tom.vm.network "public_network"
+     tom.vm.network "private_network", ip: "192.168.50.3"
      tom.vm.network "forwarded_port", guest: 8080, host: 4000, auto_correct: true
      tom.vm.network "forwarded_port", guest: 80, host: 4567
      #tom.vm.synced_folder "file/tomcat/", "/home/vagrant/"
@@ -56,6 +53,21 @@ Vagrant.configure("2") do |config|
      zab.vm.provision "shell", path: "./provision/zabbix-setup.sh"
      zab.vm.provider "virtualbox" do |vb|
        vb.name = "zabbix"
+       vb.memory = "1024"
+     end
+   end
+
+  config.vm.define "true" do |zab|
+     zab.vm.box = "geerlingguy/centos7"
+     zab.vm.box_version = "1.2.16"
+     zab.vm.box_check_update = false
+     zab.vm.network "public_network"
+     zab.vm.network "forwarded_port", guest: 5000, host: 5000, auto_correct: true 
+     zab.vm.network "forwarded_port", guest: 5001, host: 5001, auto_correct: true
+     zab.vm.synced_folder "file/zabbix/", "/home/vagrant/"
+     zab.vm.provision "shell", path: "./provision/zabbix-setup.sh"
+     zab.vm.provider "virtualbox" do |vb|
+       vb.name = "true"
        vb.memory = "1024"
      end
    end
