@@ -73,11 +73,53 @@
     become: yes
     become_user: root
 
-  - name: Install nginx
-    yum: name=nginx state=present
+  - name: Install httpd
+    yum: name=httpd state=present
 
   - name: Install httpd site file
     copy: src=/home/vagrant/000-default.conf dest=/etc/httpd/conf.d/default-site.conf
 
-  - name: start nginx
-    service: name=nginx state=started
+  - name: start httpd
+    service: name=httpd state=started
+
+  - name: Install zabbix-agent repo
+    shell: rpm -Uvh https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-release-4.0-2.el7.noarch.rpm
+    become: yes
+    become_user: root
+
+  - name: Install zabbix-agent
+    yum: name=zabbix-agent state=present
+
+  - name: Add Zabbix Server IP
+    lineinfile:
+      state: present
+      path: /etc/zabbix/zabbix_agentd.conf
+      regexp: '^Server=127.0.0.1'
+      line: Server=192.168.50.5
+
+  - name: Add ServerActive=192.168.50.5:10051
+    lineinfile:
+      state: present
+      path: /etc/zabbix/zabbix_agentd.conf
+      regexp: '^ServerActive=127.0.0.1'
+      line: ServerActive=192.168.50.5:10051
+
+  - name: Add Hostname=zabbix_tomcat
+    lineinfile:
+      state: present
+      path: /etc/zabbix/zabbix_agentd.conf
+      regexp: '^Hostname=Zabbix server'
+      line: Hostname=zabbix_tomcat
+
+  - name: Add HostMetadata=linux.autoreg
+    lineinfile:
+      state: present
+      path: /etc/zabbix/zabbix_agentd.conf
+      regexp: '^# HostMetadata='
+      line: HostMetadata=linux.autoreg
+
+  - name: Start zabbix-agent
+    service:
+      name: zabbix-agent
+      enabled: yes
+      state: started

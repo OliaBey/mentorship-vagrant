@@ -1,0 +1,74 @@
+---
+# tasks file for tomcat
+
+- name: Install Java 1.8
+  yum: name=java-1.8.0-openjdk state=present
+
+- name: Install wget
+  yum: name=wget state=present
+
+- name: Check if Tomcat installed
+  stat:
+    path: /opt/tomcat/
+  register: tomcat_path
+
+- name: Install Tomcat
+  block:
+
+  - name: add group "tomcat"
+    group: name=tomcat
+
+  - name: add user "tomcat"
+    user: name=tomcat group=tomcat home=/usr/share/tomcat createhome=no
+    become: yes
+    become_user: root
+
+  - name: Unarchive a tomcat file
+    unarchive:
+      src: https://www-eu.apache.org/dist/tomcat/tomcat-8/v8.5.37/bin/apache-tomcat-8.5.37.tar.gz
+        #http://apache.cp.if.ua/tomcat/tomcat-7/v7.0.93/bin/apache-tomcat-7.0.93.tar.gz
+      dest: /opt/
+      remote_src: yes
+
+  - name: Rename Tomcat directory
+    shell: mv /opt/apache-tomcat-8.5.37/ /opt/tomcat/
+
+  - name: Change ownership of Tomcat installation directory
+    file: path=/opt/tomcat/ owner=tomcat group=tomcat state=directory recurse=yes mode=0755
+
+  - name: Change ownership of webapps/ directory
+    file: path=/opt/tomcat/webapps owner=tomcat group=tomcat state=directory recurse=yes mode=0757
+
+  - name: Install Systemd Unit File
+    copy: src=tomcat.service dest=/etc/systemd/system/
+
+  - name: Systemctl daemon-reload
+    shell: systemctl daemon-reload
+    become: yes
+    become_user: root
+
+  - name: Systemctl enable tomcat
+    shell: systemctl enable tomcat
+    become: yes
+    become_user: root
+
+  - name: Configure Tomcat users
+    template: src=tomcat-users.xml dest=/opt/tomcat/conf/
+    #notify: restart tomcat
+
+  - name: Allow acces to manager app from all hosts
+    template: src=context.xml dest=/opt/tomcat/webapps/manager/META-INF/
+    #notify: restart tomcat
+
+  when: tomcat_path.stat.exists == false
+
+- name: Start Tomcat
+  command: nohup /opt/tomcat/bin/startup.sh
+  become: yes
+  become_user: root
+
+- name: DemoSite Upload
+  get_url:
+    url: https://s3-us-west-2.amazonaws.com/demosite11/HelloWorld-Time.war
+    dest: /opt/tomcat/webapps/
+    #https://s3-us-west-2.amazonaws.com/demosite11/sample.war

@@ -1,0 +1,85 @@
+---
+# tasks file for zabbix-server
+- name: Change SELINUX
+  copy: 
+    src: /home/vagrant/selinux
+    dest: /etc/sysconfig/selinux
+
+- name: Install httpd
+  yum: name=httpd state=present
+
+- name: Move httpd.conf
+  copy: 
+    src: /home/vagrant/httpd.conf
+    dest: /etc/httpd/conf/httpd.conf
+
+- name: Enable and Start httpd
+  service:
+    name: httpd
+    enabled: yes
+    state: started
+
+- name: Install Zabbix key on rhel 7
+  yum: name=https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-release-4.0-1.el7.noarch.rpm state=present
+
+- name: Install Zabbix Mysql Packages
+  yum: name=zabbix-server-mysql state=present
+
+- name: Install Zabbix Web Packages
+  yum: name=zabbix-web-mysql state=present
+
+- name: Populate the Zabbix MYSQL Database
+  shell: zcat /usr/share/doc/zabbix-server-mysql-{{ zbx_server_Version }}/create.sql.gz | mysql -u zabbix zabbix
+
+- name: Install Zabbix Mysql Web Packages
+  yum: name={{item}} state=present
+  with_items:
+   - zabbix-web-mysql-{{zbx_server_Version}}
+  when: zbx_server_PostgreSQL == 0 and zbx_server_Webserver == 1
+  notify: start zabbix-server
+
+- name: Copy Zabbix Server PHP Config for Rhel 7
+  template: src=zabbix7.conf.j2 dest=/etc/httpd/conf.d/zabbix.conf
+  when: zbx_server_Webserver == 1 and ansible_distribution_major_version == '7'
+  notify: start zabbix-server
+
+- name: Copy Zabbix Web frontend Config for MySQL
+  template: src=zabbix.conf.php.j2 dest=/etc/zabbix/web/zabbix.conf.php
+  when: zbx_server_Webserver == 1 and zbx_server_PostgreSQL == 0
+
+- name: Copy Zabbix Web frontend Config for PostgreSQL
+  template: src=zabbix.conf2.php.j2 dest=/etc/zabbix/web/zabbix.conf.php
+  when: zbx_server_Webserver == 1 and zbx_server_PostgreSQL == 1
+
+- name: Add folder /usr/local/etc/zabbix_server.conf.d
+  file: path=/usr/local/etc/zabbix_server.conf.d state=directory mode=0770 owner=zabbix group=zabbix
+
+- name: Install libsemanage-python for selinux support
+  yum: name=libsemanage-python state=present
+  when: ansible_selinux.status == "enabled"
+
+- name: Ensure httpd can connect to network ports
+  seboolean: name=httpd_can_network_connect state=yes persistent=yes
+  when: ansible_selinux.status == "enabled"
+
+- name: Configure SELinux Policy httpd can connect db
+  seboolean: name=httpd_can_network_connect_db state=yes persistent=yes
+  when: ansible_selinux.status == "enabled"
+
+- name: Configure SELinux Policy zabbix
+  seboolean: name=zabbix_can_network state=yes persistent=yes
+  when: ansible_selinux.status == "enabled"
+
+- name: Open the Firewalld port 10051/tcp on Zabbix-server
+  firewalld: port={{ item }} permanent=true state=enabled
+  when: ansible_distribution_major_version == '7'
+  with_items:
+    - 10051/tcp
+    - 10051/udp
+
+- name: Reload firewalld config
+  command: firewall-cmd --reload
+  when: ansible_distribution_major_version == '7'
+
+- name: Configure the Zabbix-Server config file
+  include: zabbix-server-config.yml
