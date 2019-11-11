@@ -1,0 +1,236 @@
+Description: Auto Scaling Group
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name (prefixed to resource names)
+    Type: String
+
+  InstanceType:
+    Description: Instance type to build the ECS cluster
+    Type: String
+    Default: t2.micro
+
+  ClusterSize:
+    Description: How many ECS hosts do you want to initially deploy?
+    Type: Number
+    Default: 2
+
+  VPC:
+    Description: VPC for ECS cluster
+    Type: AWS::EC2::VPC::Id
+
+  Subnets:
+    Description: Subnets for ECS cluster
+    Type: List<AWS::EC2::Subnet::Id>
+
+  LoadBalancerSecurityGroup:
+    Description: Select the Security Group to apply to the Application Load Balancer
+    Type: AWS::EC2::SecurityGroup::Id
+
+  KeyName:
+    Type: String
+
+Mappings:
+  AMI2RegionMap:
+    eu-west-1: #Ireland
+      '64': ami-09cd8db92c6bf3a84
+    eu-west-2: #London
+      '64': ami-016a20f0624bae8c5
+    eu-central-1: #Frankfurt
+      '64': ami-0ab1db011871746ef
+    us-west-1:  #N. California
+      '64': ami-05cc68a00d392447a
+    us-west-2:  #Oregon
+      '64': ami-0054160a688deeb6a
+
+Resources:
+  HostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Access to the ECS hosts and the tasks/containers on them
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 0                                                            #????????????????????????????
+          ToPort: 65535
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup # Only allow inbound access to ECS from the ELB
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '8080'
+          ToPort: '8080'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ECS-Hosts
+
+
+  ECSLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+        - AMI2RegionMap
+        - Ref: AWS::Region
+        - '64'
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref ECSHostSecurityGroup
+      IamInstanceProfile: !Ref ECSInstanceProfile
+
+  ECSInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref ECSRole
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref Subnets
+      LaunchConfigurationName: !Ref ECSLaunchConfiguration
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: !Ref ClusterSize
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} ECS host
+          PropagateAtLaunch: true
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 1
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+
+  MemoryReservationScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref ECSAutoScalingGroup
+      Cooldown: '300'
+      ScalingAdjustment: '1'
+
+  MemoryReservationHighAlert:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Maximum
+      Threshold: '75'       #!Ref ClusterMaxMemoryReservationPercentage
+      AlarmDescription: Alarm if Memory Reservation too high
+      Period: '60'
+      AlarmActions:
+      - Ref: MemoryReservationScaleUpPolicy
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: ClusterName
+        Value:
+          Ref: ECSCluster
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: MemoryReservation
+
+  MemoryReservationScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      Cooldown: '300'
+      ScalingAdjustment: '-1'
+
+  MemoryReservationLowAlert:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Maximum
+      Threshold: '25'       #!Ref ClusterMaxMemoryReservationPercentage
+      AlarmDescription: Alarm if Memory Reservation too low
+      Period: '60'
+      AlarmActions:
+      - Ref: MemoryReservationScaleDownPolicy
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: ClusterName
+        Value:
+          Ref: ECSCluster
+      ComparisonOperator: LessThanThreshold
+      MetricName: MemoryReservation
+
+
+  ECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub ${EnvironmentName}-ECSRole-${AWS::Region}
+      AssumeRolePolicyDocument: |
+        {
+            "Statement": [{
+                "Action": "sts:AssumeRole",
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "ec2.amazonaws.com"
+                }
+            }]
+        }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: ecs-service
+          PolicyDocument: |
+            {
+                "Statement": [{
+                    "Effect": "Allow",
+                    "Action": [
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents",
+                        "logs:DescribeLogStreams"
+                    ],
+                    "Resource": [
+                        "arn:aws:logs:*:*:*",
+                        "*"
+                    ]
+                }]
+            }
+  erviceAutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Action:
+            - "sts:AssumeRole"
+          Effect: Allow
+          Principal:
+            Service:
+              - application-autoscaling.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: ecs-service-autoscaling
+          PolicyDocument:
+            Statement:
+              Effect: Allow
+              Action:
+                - application-autoscaling:*
+                - cloudwatch:DescribeAlarms
+                - cloudwatch:PutMetricAlarm
+              Resource: "*"
+
+Outputs:
+  HostSecurityGroup:
+    Description: A reference to the security group for hosts
+    Value: !Ref HostSecurityGroup
+
+  ServiceAutoScalingRole:
+    Description: A reference to service auto scaling role
+    Value: !GetAtt ServiceAutoScalingRole.Arn
+
+  AutoScalingGroupName:
+    Description: A reference to AutoScaling Group Name
+    Value: !Ref AutoScalingGroup
