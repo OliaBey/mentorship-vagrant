@@ -4,23 +4,23 @@ Parameters:
   EnvironmentName:
     Description: Name that will be prefixed to resource names
     Type: String
+    Default: La-La-Land
 
   VPC:
     Description: Choose VPC for the ALB
     Type: AWS::EC2::VPC::Id
+    Default: vpc-06de9ceef930902cc
 
   Subnets:
     Description: Which subnets the ALB should be deployed to
     Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-0219c57580525c39b,subnet-09b03d5e1842d7f6b
 
   Path:
     Description: The path to register with the Application Load Balancer
     Type: String
     Default: /
 
-  ALBCertificateArn:
-    Description: ALB Certificate Arn
-    Type: String
 
 
 Resources:
@@ -32,8 +32,8 @@ Resources:
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
           IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
+          FromPort: 80
+          ToPort: 80
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           IpProtocol: tcp
@@ -57,10 +57,8 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref LoadBalancer
-      Port: '443'
-      Protocol: HTTPS
-      Certificates:
-        - CertificateArn: !Ref ALBCertificateArn
+      Port: '80'
+      Protocol: HTTP
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref DefaultTargetGroup

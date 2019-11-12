@@ -13,13 +13,13 @@ Vagrant.configure("2") do |config|
        vb.name = "jenkins"
        vb.memory = "4096"
      end
-    # cen.vm.provision "shell" do |s| 
-    #   s.path = "./provision/jenkins-setup.sh"
-    #   s.args = ["java-1.8.0-openjdk-devel"]
-    # end
-     cen.vm.provision "ansible_local" do |ansible|
-        ansible.playbook = "./ansible/jenkins/playbook.yml"
+     cen.vm.provision "shell" do |s| 
+       s.path = "./provision/jenkins-setup.sh"
+       s.args = ["java-1.8.0-openjdk-devel"]
      end
+    # cen.vm.provision "ansible_local" do |ansible|
+    #    ansible.playbook = "./ansible/jenkins/playbook.yml"
+    # end
    end
 
   config.vm.define "mytomcat" do |tom|
