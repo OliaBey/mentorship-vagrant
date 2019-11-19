@@ -1,0 +1,4 @@
+---
+- hosts: mytomcat
+  roles:
+    - role: tomcat

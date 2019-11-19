@@ -1,0 +1,104 @@
+Resources:
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3-us-west-2.amazonaws.com/templates11/infrastructure/vpc.yml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VpcCIDR: 10.180.0.0/16
+        PublicSubnet1CIDR: 10.180.8.0/21
+        PublicSubnet2CIDR: 10.180.16.0/21
+
+  ALB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3-us-west-2.amazonaws.com/templates11/infrastructure/load-balancers.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VPC: !GetAtt VPC.Outputs.VPC
+        Subnets: !GetAtt VPC.Outputs.PublicSubnets
+        ALBCertificateArn: arn:aws:acm:us-west-2:256280117848:certificate/e5dd54a6-daa9-4dca-b330-47cbeafc1512
+
+
+  RDS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3-us-west-2.amazonaws.com/templates11/infrastructure/rds_with_replica.yaml
+      Parameters:
+        DBName: RDSService
+        DBUser: master
+        DBPassword: petclinic
+        DBAllocatedStorage: "5"
+        DBInstanceClass: db.t2.micro
+        ECSHostSecurityGroup: !GetAtt ECS.Outputs.ECSHostSecurityGroup
+        VPC: !GetAtt VPC.Outputs.VPC
+        Subnets: !GetAtt VPC.Outputs.PublicSubnets
+        #AccountId: ''
+        #DBSecurityGroup: !GetAtt SecurityGroups.Outputs.DBSecurityGroup
+
+  ECS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3-us-west-2.amazonaws.com/templates11/infrastructure/ecs-cluster-new.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        InstanceType: t2.micro
+        ClusterSize: '1'
+        VPC: !GetAtt VPC.Outputs.VPC
+        Subnets: !GetAtt VPC.Outputs.PublicSubnets
+        KeyName: OregonMy
+        LoadBalancerSecurityGroup: !GetAtt ALB.Outputs.LoadBalancerSecurityGroup
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !GetAtt VPC.Outputs.VPC
+    Export:
+      Name: !Sub ${AWS::StackName}-VPC
+
+  Cluster:
+    Description: A reference to the ECS cluster
+    Value: !GetAtt ECS.Outputs.Cluster
+    Export:
+      Name: !Sub ${AWS::StackName}-Cluster
+
+  ClusterName:
+    Description: A reference to the ECS cluster
+    Value: !GetAtt ECS.Outputs.ClusterName
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterName
+
+  ECSServiceAutoScalingRole:
+    Description: A reference to ECS service auto scaling role
+    Value: !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
+    Export:
+      Name: !Sub ${AWS::StackName}-ECSServiceAutoScalingRole
+
+  LoadBalancer:
+    Description: A reference to the Application Load Balancer
+    Value: !GetAtt ALB.Outputs.LoadBalancer
+    Export:
+      Name: !Sub ${AWS::StackName}-LoadBalancer
+
+  DefaultTargetGroup:
+    Description: A reference for DefaultTargetGroup for ALB
+    Value: !GetAtt ALB.Outputs.DefaultTargetGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-DefaultTargetGroup
+
+  DefaultTargetGroupName:
+    Description: A reference for DefaultTargetGroup for ALB
+    Value: !GetAtt ALB.Outputs.DefaultTargetGroupName
+    Export:
+      Name: !Sub ${AWS::StackName}-DefaultTargetGroupName
+
+  ProductServiceUrl:
+    Value: !Join ["", [!GetAtt ALB.Outputs.LoadBalancerUrl, "/"]]
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductServiceUrl
+
+  MasterJDBCConnectionString:
+    Description: JDBC connection string for the master database
+    Value: !GetAtt RDS.Outputs.MasterJDBCConnectionString
+    Export:
+      Name: !Sub ${AWS::StackName}-MasterJDBCConnectionString

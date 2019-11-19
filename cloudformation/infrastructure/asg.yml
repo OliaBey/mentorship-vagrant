@@ -1,0 +1,286 @@
+Description: Auto Scaling Group
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name (prefixed to resource names)
+    Type: String
+    Default: La-La-Land
+  InstanceType:
+    Description: Instance type to build the cluster
+    Type: String
+    Default: t2.micro
+
+  ClusterSize:
+    Description: How many hosts do you want to initially deploy?
+    Type: Number
+    Default: 1
+
+  VPC:
+    Description: VPC for cluster
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-06de9ceef930902cc
+
+  Subnets:
+    Description: Subnets for ASG
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-0219c57580525c39b,subnet-09b03d5e1842d7f6b
+
+  LoadBalancerSecurityGroup:
+    Description: Select the Security Group to apply to the Application Load Balancer
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-074959a0c6f30bca1
+
+  KeyName:
+    Type: String
+    Default: NVirginia
+
+Mappings:
+  AMI2RegionMap:
+    eu-west-1: #Ireland
+      '64': ami-09cd8db92c6bf3a84
+    eu-west-2: #London
+      '64': ami-016a20f0624bae8c5
+    eu-central-1: #Frankfurt
+      '64': ami-0ab1db011871746ef
+    us-east-1:  #N. Virginia
+      '64': ami-00dc79254d0461090
+    us-west-1:  #N. California
+      '64': ami-05cc68a00d392447a
+    us-west-2:  #Oregon
+      '64': ami-0054160a688deeb6a
+
+Resources:
+  HostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Access to the hosts and the tasks/containers on them
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 0                                                            #????????????????????????????
+          ToPort: 65535
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup # Only allow inbound access to ASG from the ELB
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '8080'
+          ToPort: '8080'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Hosts
+
+
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+        - AMI2RegionMap
+        - Ref: AWS::Region
+        - '64'
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref HostSecurityGroup
+      IamInstanceProfile: !Ref InstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          yum install -y aws-cfn-bootstrap
+          /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration
+          /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSAutoScalingGroup
+          sudo yum install -y awslogs
+          sudo systemctl start awslogsd
+          sudo systemctl enable awslogsd.service
+
+          cat > /etc/awslogs/awscli.conf << EOF
+          [default]
+          region = ${AWS::Region}
+          [plugins]
+          cwlogs = cwlogs
+          EOF
+
+          cat > /etc/awslogs/awslogs.conf << EOF
+          [general]
+          state_file = /var/lib/awslogs/agent-state
+
+          [/var/log/dmesg]
+          file = /var/log/dmesg
+          log_stream_name = {instance_id}/var/log/dmesg
+          log_group_name = ${ECSLogGroup}
+
+          [/var/log/messages]
+          datetime_format = %b %d %H:%M:%S
+          file = /var/log/messages
+          log_stream_name = {instance_id}/var/log/messages
+          log_group_name = ${ECSLogGroup}
+
+          [/var/log/cloud-init.log]
+          datetime_format = %b %d %H:%M:%S
+          file = /var/log/cloud-init.log
+          log_stream_name = {instance_id}/var/log/cloud-init.log
+          log_group_name = ${ECSLogGroup}
+
+          [/var/log/cfn-init.log]
+          datetime_format = %Y-%m-%d %H:%M:%S
+          file = /var/log/cfn-init.log
+          log_stream_name = {instance_id}/var/log/cfn-init.log
+          log_group_name = ${ECSLogGroup}
+          EOF
+
+          #restart cloudwatch agent
+          sudo systemctl restart awslogsd
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref Role
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref Subnets
+      LaunchConfigurationName: !Ref LaunchConfiguration
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: !Ref ClusterSize
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} host
+          PropagateAtLaunch: true
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 1
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+
+  MemoryReservationScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      Cooldown: '300'
+      ScalingAdjustment: '1'
+
+  MemoryReservationHighAlert:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Maximum
+      Threshold: '75'       #!Ref ClusterMaxMemoryReservationPercentage
+      AlarmDescription: Alarm if Memory Reservation too high
+      Period: '60'
+      AlarmActions:
+      - Ref: MemoryReservationScaleUpPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: AutoScalingGroup
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: MemoryReservation
+
+  MemoryReservationScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      Cooldown: '300'
+      ScalingAdjustment: '-1'
+
+  MemoryReservationLowAlert:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Maximum
+      Threshold: '25'       #!Ref ClusterMaxMemoryReservationPercentage
+      AlarmDescription: Alarm if Memory Reservation too low
+      Period: '60'
+      AlarmActions:
+      - Ref: MemoryReservationScaleDownPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: AutoScalingGroup
+      ComparisonOperator: LessThanThreshold
+      MetricName: MemoryReservation
+
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub ${EnvironmentName}-Role-${AWS::Region}
+      AssumeRolePolicyDocument: |
+        {
+            "Statement": [{
+                "Action": "sts:AssumeRole",
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "ec2.amazonaws.com"
+                }
+            }]
+        }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: la-la-land-service
+          PolicyDocument: |
+            {
+                "Statement": [{
+                    "Effect": "Allow",
+                    "Action": [
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents",
+                        "logs:DescribeLogStreams"
+                    ],
+                    "Resource": [
+                        "arn:aws:logs:*:*:*",
+                        "*"
+                    ]
+                }]
+            }
+  erviceAutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Action:
+            - "sts:AssumeRole"
+          Effect: Allow
+          Principal:
+            Service:
+              - application-autoscaling.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: la-la-land-service-autoscaling
+          PolicyDocument:
+            Statement:
+              Effect: Allow
+              Action:
+                - application-autoscaling:*
+                - cloudwatch:DescribeAlarms
+                - cloudwatch:PutMetricAlarm
+              Resource: "*"
+
+Outputs:
+  HostSecurityGroup:
+    Description: A reference to the security group for hosts
+    Value: !Ref HostSecurityGroup
+
+  AutoScalingGroupName:
+    Description: A reference to AutoScaling Group Name
+    Value: !Ref AutoScalingGroup
