@@ -17,6 +17,48 @@ resource "aws_autoscaling_group" "this" {
     }
 }
 
+resource "aws_autoscaling_policy" "mem_reserv_scale_down_policy" {
+  name                   = "${local.name}-mem-reserv-scale-down-policy"
+  scaling_adjustment     = "-1"
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name = "${aws_autoscaling_group.this.name}"
+}
+
+resource "aws_cloudwatch_metric_alarm" "mem-reserv-scale-down-alarm" {
+  alarm_name                = "${local.name}-mem-reserv-scale-down-alarm"
+  comparison_operator       = "LessThanThreshold"
+  evaluation_periods        = "1"
+  metric_name               = "MemoryReservation"
+  namespace                 = "AWS/EC2"
+  period                    = "60"
+  statistic                 = "Maximum"
+  threshold                 = "25"
+  alarm_description         = "This metric monitors ec2 memory reservation"
+  alarm_actions             = ["${aws_autoscaling_policy.mem_reserv_scale_down_policy.arn}"]
+}
+
+resource "aws_autoscaling_policy" "mem_reserv_scale_up_policy" {
+  name                   = "${local.name}-mem-reserv-scale-up-policy"
+  scaling_adjustment     = "1"
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name = "${aws_autoscaling_group.this.name}"
+}
+
+resource "aws_cloudwatch_metric_alarm" "mem-reserv-scale-up-alarm" {
+  alarm_name                = "${local.name}-mem-reserv-scale-up-alarm"
+  comparison_operator       = "GreaterThanThreshold"
+  evaluation_periods        = "1"
+  metric_name               = "MemoryReservation"
+  namespace                 = "AWS/EC2"
+  period                    = "60"
+  statistic                 = "Maximum"
+  threshold                 = "75"
+  alarm_description         = "This metric monitors ec2 memory reservation"
+  alarm_actions             = ["${aws_autoscaling_policy.mem_reserv_scale_up_policy.arn}"]
+}
+
 resource "aws_launch_configuration" "this" {
     name = "${local.name}"
     image_id = "${var.image_id}"
@@ -35,22 +77,21 @@ resource "aws_iam_instance_profile" "this" {
 
 resource "aws_iam_role" "this" {
   name = "${local.name}"
-
-  assume_role_policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Action": "sts:AssumeRole",
-      "Principal": {
-        "Service": "ec2.amazonaws.com"
-      },
-      "Effect": "Allow",
-      "Sid": ""
-    }
-  ]
+  assume_role_policy = "${data.aws_iam_policy_document.this.json}"
 }
-EOF
+
+data "aws_iam_policy_document" "this" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = [
+        "ec2.amazonaws.com",
+        "cloudwatch.amazonaws.com",
+        ]
+    }
+  }
 }
 
 ### ECS ASG Security Group
