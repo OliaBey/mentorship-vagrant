@@ -1,8 +1,9 @@
+# aws cloudformation create-stack --stack-name MAIN --template-body file://main.yml --region us-east-1 --capabilities CAPABILITY_NAMED_IAM
 Resources:
   VPC:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3-us-west-2.amazonaws.com/templates11/infrastructure/vpc.yml
+      TemplateURL: https://provision-cf-tf.s3.amazonaws.com/infrastructure/vpc.yml
       Parameters:
         EnvironmentName: !Ref AWS::StackName
         VpcCIDR: 10.180.0.0/16
@@ -12,41 +13,23 @@ Resources:
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3-us-west-2.amazonaws.com/templates11/infrastructure/load-balancers.yaml
+      TemplateURL: https://provision-cf-tf.s3.amazonaws.com/infrastructure/loadbalancer.yml
       Parameters:
         EnvironmentName: !Ref AWS::StackName
         VPC: !GetAtt VPC.Outputs.VPC
         Subnets: !GetAtt VPC.Outputs.PublicSubnets
-        ALBCertificateArn: arn:aws:acm:us-west-2:256280117848:certificate/e5dd54a6-daa9-4dca-b330-47cbeafc1512
 
-
-  RDS:
+  ASG:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3-us-west-2.amazonaws.com/templates11/infrastructure/rds_with_replica.yaml
-      Parameters:
-        DBName: RDSService
-        DBUser: master
-        DBPassword: petclinic
-        DBAllocatedStorage: "5"
-        DBInstanceClass: db.t2.micro
-        ECSHostSecurityGroup: !GetAtt ECS.Outputs.ECSHostSecurityGroup
-        VPC: !GetAtt VPC.Outputs.VPC
-        Subnets: !GetAtt VPC.Outputs.PublicSubnets
-        #AccountId: ''
-        #DBSecurityGroup: !GetAtt SecurityGroups.Outputs.DBSecurityGroup
-
-  ECS:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: https://s3-us-west-2.amazonaws.com/templates11/infrastructure/ecs-cluster-new.yaml
+      TemplateURL: https://provision-cf-tf.s3.amazonaws.com/infrastructure/asg.yml
       Parameters:
         EnvironmentName: !Ref AWS::StackName
         InstanceType: t2.micro
         ClusterSize: '1'
         VPC: !GetAtt VPC.Outputs.VPC
         Subnets: !GetAtt VPC.Outputs.PublicSubnets
-        KeyName: OregonMy
+        KeyName: priv_us_east_1
         LoadBalancerSecurityGroup: !GetAtt ALB.Outputs.LoadBalancerSecurityGroup
 
 Outputs:
@@ -55,24 +38,6 @@ Outputs:
     Value: !GetAtt VPC.Outputs.VPC
     Export:
       Name: !Sub ${AWS::StackName}-VPC
-
-  Cluster:
-    Description: A reference to the ECS cluster
-    Value: !GetAtt ECS.Outputs.Cluster
-    Export:
-      Name: !Sub ${AWS::StackName}-Cluster
-
-  ClusterName:
-    Description: A reference to the ECS cluster
-    Value: !GetAtt ECS.Outputs.ClusterName
-    Export:
-      Name: !Sub ${AWS::StackName}-ClusterName
-
-  ECSServiceAutoScalingRole:
-    Description: A reference to ECS service auto scaling role
-    Value: !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
-    Export:
-      Name: !Sub ${AWS::StackName}-ECSServiceAutoScalingRole
 
   LoadBalancer:
     Description: A reference to the Application Load Balancer
@@ -96,9 +61,3 @@ Outputs:
     Value: !Join ["", [!GetAtt ALB.Outputs.LoadBalancerUrl, "/"]]
     Export:
       Name: !Sub ${AWS::StackName}-ProductServiceUrl
-
-  MasterJDBCConnectionString:
-    Description: JDBC connection string for the master database
-    Value: !GetAtt RDS.Outputs.MasterJDBCConnectionString
-    Export:
-      Name: !Sub ${AWS::StackName}-MasterJDBCConnectionString
