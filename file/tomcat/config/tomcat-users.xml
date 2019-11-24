@@ -13,9 +13,10 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<Context antiResourceLocking="false" privileged="true" >
-  <!--
-  <Valve className="org.apache.catalina.valves.RemoteAddrValve"
-         allow="127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1" />
-  -->
-</Context>
+<tomcat-users xmlns="http://tomcat.apache.org/xml"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://tomcat.apache.org/xml tomcat-users.xsd"
+              version="1.0">
+              <user username="admin" password="admin" roles="manager-gui,admin-gui"/>
+              <user username="deployer" password="deployer" roles="manager-script"/>
+</tomcat-users>

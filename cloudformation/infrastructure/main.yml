@@ -1,0 +1,63 @@
+# aws cloudformation create-stack --stack-name MAIN --template-body file://main.yml --region us-east-1 --capabilities CAPABILITY_NAMED_IAM
+Resources:
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://provision-cf-tf.s3.amazonaws.com/infrastructure/vpc.yml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VpcCIDR: 10.180.0.0/16
+        PublicSubnet1CIDR: 10.180.8.0/21
+        PublicSubnet2CIDR: 10.180.16.0/21
+
+  ALB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://provision-cf-tf.s3.amazonaws.com/infrastructure/loadbalancer.yml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VPC: !GetAtt VPC.Outputs.VPC
+        Subnets: !GetAtt VPC.Outputs.PublicSubnets
+
+  ASG:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://provision-cf-tf.s3.amazonaws.com/infrastructure/asg.yml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        InstanceType: t2.micro
+        ClusterSize: '1'
+        VPC: !GetAtt VPC.Outputs.VPC
+        Subnets: !GetAtt VPC.Outputs.PublicSubnets
+        KeyName: priv_us_east_1
+        LoadBalancerSecurityGroup: !GetAtt ALB.Outputs.LoadBalancerSecurityGroup
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !GetAtt VPC.Outputs.VPC
+    Export:
+      Name: !Sub ${AWS::StackName}-VPC
+
+  LoadBalancer:
+    Description: A reference to the Application Load Balancer
+    Value: !GetAtt ALB.Outputs.LoadBalancer
+    Export:
+      Name: !Sub ${AWS::StackName}-LoadBalancer
+
+  DefaultTargetGroup:
+    Description: A reference for DefaultTargetGroup for ALB
+    Value: !GetAtt ALB.Outputs.DefaultTargetGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-DefaultTargetGroup
+
+  DefaultTargetGroupName:
+    Description: A reference for DefaultTargetGroup for ALB
+    Value: !GetAtt ALB.Outputs.DefaultTargetGroupName
+    Export:
+      Name: !Sub ${AWS::StackName}-DefaultTargetGroupName
+
+  ProductServiceUrl:
+    Value: !Join ["", [!GetAtt ALB.Outputs.LoadBalancerUrl, "/"]]
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductServiceUrl
