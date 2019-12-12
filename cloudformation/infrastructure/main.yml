@@ -29,7 +29,7 @@ Resources:
         ClusterSize: '1'
         VPC: !GetAtt VPC.Outputs.VPC
         Subnets: !GetAtt VPC.Outputs.PublicSubnets
-        KeyName: priv_us_east_1
+        KeyName: NewVirginia
         LoadBalancerSecurityGroup: !GetAtt ALB.Outputs.LoadBalancerSecurityGroup
 
 Outputs:

@@ -9,5 +9,7 @@ variable "instance_type" {
 }
 
 variable "key_name" {
-    default = "priv_us_east_1"
+    default = "NewVirginia"
 }
+
+/* EOF */

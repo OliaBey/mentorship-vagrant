@@ -1,0 +1,10 @@
+version: "3.3"
+
+services:
+  tomcat:
+    build: .
+    #image: tomcat:v1
+    ports:
+      - "8080:8080"
+    deploy:
+      replicas: 1
