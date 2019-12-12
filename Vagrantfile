@@ -11,7 +11,7 @@ Vagrant.configure("2") do |config|
      cen.vm.synced_folder "file/jenkins/", "/home/vagrant/"
      cen.vm.provider "virtualbox" do |vb|
        vb.name = "jenkins"
-       vb.memory = "4096"
+       vb.memory = "1024"
      end
      cen.vm.provision "shell" do |s| 
        s.path = "./provision/jenkins-setup.sh"

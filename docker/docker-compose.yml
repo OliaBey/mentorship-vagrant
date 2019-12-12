@@ -2,9 +2,38 @@ version: "3.3"
 
 services:
   tomcat:
-    build: .
+    build: ./tomcat/
     #image: tomcat:v1
     ports:
-      - "8080:8080"
-    deploy:
-      replicas: 1
+      - "8090:8080"
+    depends_on:
+      - mysql
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://localhost/petclinic?useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=petclinic
+      - SPRING_DATASOURCE_INITIALIZATION-MODE=always
+      - SPRING_DATASOURCE_CONTINUE-ON-ERROR=true
+#      - SPRING_PROFILES_ACTIVE=mysql
+#    networks:
+#      movie-quote-network:
+#        aliases:
+#          - tomcat
+  mysql:
+    image: mysql:5.7
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=petclinic
+      - MYSQL_DATABASE=petclinic
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=petclinic
+      - MYSQL_ONETIME_PASSWORD=true
+    volumes:
+      - "./conf.d:/etc/mysql/conf.d:ro"
+  #  networks:
+  #    movie-quote-network:
+  #      aliases:
+  #        - mysql
+#networks:
+#  movie-quote-network:
